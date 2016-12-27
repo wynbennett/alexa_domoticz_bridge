@@ -6,14 +6,18 @@ Amazon Echo Alexa to domoticz bridge
 # Instructions
 
 ### Server side
-* _Where?_ This code will run on your domoticz box.  It needs to have the SSL HTTP port redirected from your public facing firewall. You have been warned, but [read up on how the web service works](https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/developing-an-alexa-skill-as-a-web-service) and what precautions are taken to verify Amazon as the source of requests.
-* _Overlay onto the Amazon Alexa Skills Kit SDK & Samples_.  Start by downloading and unpacking the Amazon Alexa Skills Kit SDK & Samples zip file. More information about the Amazon Alexa Skills Kit SDK here: [Amazon Apps and Services Developer Portal](https://developer.amazon.com/appsandservices/solutions/alexa/alexa-skills-kit/).  Replace files in the SDK with files from this repository. 
+* _Where?_ This code will either run on your Domoticz box or within AWS Lambda. If you are running it locally on Domoticz you need to have SSL HTTP port redirected from your public facing firewall and use a HTTPS cert that is properly signed. You have been warned, but [read up on how the web service works](https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/developing-an-alexa-skill-as-a-web-service) and what precautions are taken to verify Amazon as the source of requests.  Running it in Lambda allows you to get past the HTTPS requirement
+* _What to configure_ Put your device names into LIST_OF_SWITCHES, LIST_OF_THERMOSTATS, LIST_OF_THERMOSTATS_SETPOINTS, LIST_OF_THERMOSTATS_MODES, and LIST_OF_TEMPSENSORS.  Lastly enter all of the possible thermostat mode values into LIST_OF_THERMOSTATS_MODE_VALUES.
 * _Rebuild the source._  Build the source with the ./rebuild script.
-* _Run the code._ Run with the ./run script.
+* _Run the code._ Run with the ./run script only if running locall on Domoticz.
 
 ### Amazon Echo 
-* _Create a new Alexa Skill on Amazon's Developer site_.  If you haven't done this before, **stop** and setup at least one of the demos in the Skills Kit SDK and make sure it works with the server configuration you intend to use first.
+* _Create a new Alexa Skill on Amazon's Developer site_. Use the same account that is lniked to your Echo for less headaches down the road.
 * Put in the contents of the speechAssets folder into the approriate boxes on the skill's Interaction Model page.
+* In the Configuration page select if you are running this on Lambda or via HTTPS on your Domoticz box
+* In Lambda just make sure you upload the "*jar-with-dependeces.jar" and set the HOSTNAME, PORT, USERNAME and PASSWORD environment variables.  Note the ARN id in Lambda to copy that into the Alexa console.
+* Note the Amazon skill id on the AWS console and copy that into DomoticzSpeechletRequestStreamHandler where it says [your id here]
+* Once you have setup the skill in test mode it will automatically work with your Echo you have related to your Alexa developer account.  There is no need to ever publish the skill on the marketplace if you are using it for personal use.
 * _Enable the Skill & Test_
 
 # Contents

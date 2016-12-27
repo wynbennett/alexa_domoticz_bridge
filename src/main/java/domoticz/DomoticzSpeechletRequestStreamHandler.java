@@ -31,7 +31,7 @@ public final class DomoticzSpeechletRequestStreamHandler extends SpeechletReques
      * This Id can be found on https://developer.amazon.com/edw/home.html#/ "Edit" the relevant
      * Alexa Skill and put the relevant Application Ids in this Set.
      */
-    supportedApplicationIds.add("amzn1.ask.skill.804d0bdb-f376-4ba1-8388-47dfd05df1c1");
+    supportedApplicationIds.add("amzn1.ask.skill.[your id here]");
   }
 
   public DomoticzSpeechletRequestStreamHandler() {
