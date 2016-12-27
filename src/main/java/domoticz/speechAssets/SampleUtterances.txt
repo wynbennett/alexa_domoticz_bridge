@@ -38,8 +38,13 @@ SwitchIntent are my {Switch} off
 SwitchIntent are my {Switch} on or off
 SwitchIntent what state are my {Switch} 
 ThermostatIntent what is the thermostat set point
-ThermostatIntent set thermostat to {Temperature}
-ThermostatIntent set thermostat to {Temperature} degrees
-ThermostatIntent turn {Change} the thermostat
-ThermostatIntent turn {Change} the thermostat
+ThermostatIntent set {Thermostat} to {Temperature}
+ThermostatIntent set {Thermostat} to {Temperature} degrees
+ThermostatIntent set {ThermostatSetpoint} to {Temperature}
+ThermostatIntent set {ThermostatSetpoint} to {Temperature} degrees
+ThermostatIntent set {ThermostatMode} mode to {ThermostatModeValue}
+ThermostatIntent turn {Change} the {Thermostat}
+ThermostatIntent turn {Change} the {ThermostatSetpoint}
+ThermostatIntent turn the {Thermostat} {Change}
+ThermostatIntent turn the {ThermostatSetpoint} {Change}
 ThermostatIntent what is the thermostat humidity

@@ -3,8 +3,9 @@
     {
       "intent" : "TemperatureIntent",
       "slots" : [
-        { "name" : "TempSensor",
-         "type" : "LIST_OF_TEMPSENSORS"
+        {
+          "name" : "TempSensor",
+          "type" : "LIST_OF_TEMPSENSORS"
         }
       ]
     },
@@ -15,10 +16,10 @@
           "name" : "Switch",
           "type": "LIST_OF_SWITCHES"
         },
-		{
-	  		"name" : "State",
-	  		"type" : "LIST_OF_STATES"
-		}
+        {
+          "name" : "State",
+          "type" : "LIST_OF_STATES"
+        }
       ]
     },
     {
@@ -28,10 +29,26 @@
           "name" : "Temperature",
           "type": "AMAZON.NUMBER"
         },
-		{
-	  		"name" : "Change",
-	  		"type" : "LIST_OF_CHANGES"
-		}
+        {
+          "name" : "Change",
+          "type" : "LIST_OF_CHANGES"
+        },
+        {
+          "name" : "ThermostatSetpoint",
+          "type" : "LIST_OF_THERMOSTAT_SETPOINTS"
+        },
+        {
+          "name" : "Thermostat",
+          "type" : "LIST_OF_THERMOSTATS"
+        },
+        {
+          "name" : "ThermostatMode",
+          "type" : "LIST_OF_THERMOSTAT_MODES"
+        },
+        {
+          "name" : "ThermostatModeValue",
+          "type" : "LIST_OF_THERMOSTAT_MODE_VALUES"
+        }
       ]
     },
     {
