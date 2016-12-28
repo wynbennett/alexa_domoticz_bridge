@@ -23,6 +23,19 @@
       ]
     },
     {
+      "intent": "SceneIntent",
+      "slots": [
+        {
+          "name" : "Scene",
+          "type": "LIST_OF_SCENES"
+        },
+        {
+          "name" : "State",
+          "type" : "LIST_OF_STATES"
+        }
+      ]
+    },
+    {
       "intent": "ThermostatIntent",
       "slots": [
         {

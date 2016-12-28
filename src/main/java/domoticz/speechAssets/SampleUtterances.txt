@@ -48,3 +48,15 @@ ThermostatIntent turn {Change} the {ThermostatSetpoint}
 ThermostatIntent turn the {Thermostat} {Change}
 ThermostatIntent turn the {ThermostatSetpoint} {Change}
 ThermostatIntent what is the thermostat humidity
+SceneIntent turn {Scene} {State}
+SceneIntent turn the {Scene} {State}
+SceneIntent turn my {Scene} {State}
+SceneIntent turn {State} {Scene}
+SceneIntent turn {State} the {Scene}
+SceneIntent turn {State} my {Scene}
+SceneIntent switch {Scene} {State}
+SceneIntent switch the {Scene} {State}
+SceneIntent switch my {Scene} {State}
+SceneIntent switch {State} {Scene}
+SceneIntent switch {State} the {Scene}
+SceneIntent switch {State} my {Scene}

@@ -29,13 +29,14 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.ReadContext;
 
 public class DomoticzSpeechlet implements Speechlet {
-  
+
   private static final Logger log = LoggerFactory.getLogger(DomoticzSpeechlet.class);
 
   /**
    * The key to get the item from the intent.
    */
   private static final String SWITCH_SLOT = "Switch";
+  private static final String SCENE_SLOT = "Scene";
   private static final String STATE_SLOT = "State";
   private static final String TEMPERATURE_SLOT = "Temperature";
   private static final String THERMOSTAT_SETPOINT = "ThermostatSetpoint";
@@ -52,6 +53,9 @@ public class DomoticzSpeechlet implements Speechlet {
 
   private static final String SERVER = "http://" + HOSTNAME + ":" + PORT;
 
+  private static final String DOMOTICZ_SCENES_LIST_URL = SERVER + "/json.htm?type=scenes";
+  private static final String DOMOTICZ_SCENE_URL =
+      SERVER + "/json.htm?type=command&param=switchscene&idx=%s&switchcmd=%s";
   private static final String DOMOTICZ_LIGHT_LIST_URL =
       SERVER + "/json.htm?type=devices&filter=light&used=true&order=Name";
   private static final String DOMOTICZ_TEMP_LIST_URL =
@@ -104,6 +108,8 @@ public class DomoticzSpeechlet implements Speechlet {
       return getTemperature(intent);
     } else if ("ThermostatIntent".equals(intentName)) {
       return getThermostat(intent);
+    } else if ("SceneIntent".equals(intentName)) {
+      return getScene(intent);
     } else if ("AMAZON.HelpIntent".equals(intentName)) {
       return getHelp();
     } else if ("AMAZON.StopIntent".equals(intentName)) {
@@ -134,17 +140,19 @@ public class DomoticzSpeechlet implements Speechlet {
    * @param intent intent for the request
    * @return SpeechletResponse spoken and visual response for the given intent
    */
-  private SpeechletResponse getSwitch(Intent intent) {
-    Slot switchSlot = intent.getSlot(SWITCH_SLOT);
+
+  private SpeechletResponse getSwitchable(Intent intent, String nameSlotParam, String listUrl,
+      String commandUrl) {
+    Slot nameSlot = intent.getSlot(nameSlotParam);
     Slot stateSlot = intent.getSlot(STATE_SLOT);
 
     PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
     SimpleCard card = new SimpleCard();
     String outputSpeechString;
 
-    if (slotHasValue(switchSlot)) {
-      String switchName = switchSlot.getValue();
-      ReadContext ctx = JsonPath.parse(queryDomoticz(DOMOTICZ_LIGHT_LIST_URL));
+    if (slotHasValue(nameSlot)) {
+      String switchName = nameSlot.getValue();
+      ReadContext ctx = JsonPath.parse(queryDomoticz(listUrl));
       logInfo("looking for switch: " + switchName);
       List<String> statusValue = ctx.read("$.result[?(@.Name =~ /" + switchName + "/i)].Status");
       if (statusValue.size() != 1) {
@@ -162,11 +170,11 @@ public class DomoticzSpeechlet implements Speechlet {
           if ("on".equals(stateName)) {
             outputSpeechString += " on";
             stateName = "On";
-            queryDomoticz(DOMOTICZ_SWITCH_URL, idxValue, stateName);
+            queryDomoticz(commandUrl, idxValue, stateName);
           } else if ("off".equals(stateName)) {
             outputSpeechString += " off";
             stateName = "Off";
-            queryDomoticz(DOMOTICZ_SWITCH_URL, idxValue, stateName);
+            queryDomoticz(commandUrl, idxValue, stateName);
           } else {
             // unknown state
             logInfo('|' + stateName + '|');
@@ -202,6 +210,14 @@ public class DomoticzSpeechlet implements Speechlet {
       card.setContent(switchListString);
       return SpeechletResponse.newTellResponse(outputSpeech, card);
     }
+  }
+
+  private SpeechletResponse getSwitch(Intent intent) {
+    return getSwitchable(intent, SWITCH_SLOT, DOMOTICZ_LIGHT_LIST_URL, DOMOTICZ_SWITCH_URL);
+  }
+
+  private SpeechletResponse getScene(Intent intent) {
+    return getSwitchable(intent, SCENE_SLOT, DOMOTICZ_SCENES_LIST_URL, DOMOTICZ_SCENE_URL);
   }
 
   private SpeechletResponse getTemperature(Intent intent) {
@@ -259,8 +275,10 @@ public class DomoticzSpeechlet implements Speechlet {
 
     String thermostatName = null;
     String thermostatId = null;
+    boolean isThermostat = false;
     if (slotHasValue(thermostatSlot)) {
       thermostatName = thermostatSlot.getValue();
+      isThermostat = true;
     } else if (slotHasValue(setpointSlot)) {
       thermostatName = setpointSlot.getValue();
     } else if (slotHasValue(modeSlot)) {
@@ -278,9 +296,10 @@ public class DomoticzSpeechlet implements Speechlet {
     }
 
     if (slotHasValue(temperatureSlot)) {
+
       int temperature = (int) Math.round(Double.parseDouble(temperatureSlot.getValue()));
 
-      queryDomoticz(DOMOTICZ_SET_SETPOINT, thermostatId, temperature);
+      setThermostatSetpoint(ctx, thermostatName, thermostatId, temperature, isThermostat);
 
       outputSpeechString = "Changing thermostat set point to " + temperature + " degrees";
       outputSpeech.setText(outputSpeechString);
@@ -309,9 +328,9 @@ public class DomoticzSpeechlet implements Speechlet {
         dataSetpoint = dataSetpoint - 1;
       }
 
-      queryDomoticz(DOMOTICZ_SET_SETPOINT, thermostatId, dataSetpoint);
+      setThermostatSetpoint(ctx, thermostatName, thermostatId, dataSetpoint, isThermostat);
 
-      outputSpeechString = "Thermostat " + change + " to " + dataSetpoint + "degress";
+      outputSpeechString = "Thermostat " + change + " to " + dataSetpoint + " degress";
       outputSpeech.setText(outputSpeechString);
       card.setTitle("Thermostat " + change);
       card.setContent(outputSpeechString);
@@ -350,6 +369,45 @@ public class DomoticzSpeechlet implements Speechlet {
     } else {
       // There was no item in the intent so return the help prompt.
       return getHelp();
+    }
+  }
+
+  private void setThermostatSetpoint(ReadContext ctx, String thermostatName, String thermostatId,
+      int temperature, boolean isThermostat) {
+    if (isThermostat) {
+      Integer mode =
+          readJsonPath(ctx, "$.result[?(@.Name =~ /" + thermostatName + " Mode/i)].Mode");
+      String modes =
+          readJsonPath(ctx, "$.result[?(@.Name =~ /" + thermostatName + " Mode/i)].Modes");
+      String[] modesListSplit = modes.split(";");
+      String modeName = null;
+      for (int i = 0; i < modesListSplit.length; i = i + 2) {
+        logInfo("Mode: " + mode + " " + modesListSplit[i] + " " + modesListSplit[i + 1]);
+        if (mode == Integer.parseInt(modesListSplit[i])) {
+          modeName = modesListSplit[i + 1];
+          break;
+        }
+      }
+
+      List<String> thermostatIds;
+      logInfo("Mode name: " + modeName);
+      if (modeName != null) {
+        if (modeName.toLowerCase().contains("heat")) {
+          thermostatIds =
+              ctx.read("$.result[?(@.Name =~ /" + thermostatName
+                  + "[\\s\\w\\d]+Heat[\\s\\w\\d]*/i)].idx");
+        } else {
+          thermostatIds =
+              ctx.read("$.result[?(@.Name =~ /" + thermostatName
+                  + "[\\s\\w\\d]+Cool[\\s\\w\\d]*/i)].idx");
+        }
+        logInfo("ThermostatIds: " + thermostatIds);
+        for (String id : thermostatIds) {
+          queryDomoticz(DOMOTICZ_SET_SETPOINT, id, temperature);
+        }
+      }
+    } else {
+      queryDomoticz(DOMOTICZ_SET_SETPOINT, thermostatId, temperature);
     }
   }
 
@@ -396,7 +454,7 @@ public class DomoticzSpeechlet implements Speechlet {
       con.setRequestProperty("Authorization", "Basic " + encoded);
       con.setRequestMethod("GET");
       int responseCode = con.getResponseCode();
-      logInfo("\nSending 'GET' request to URL : " + url);
+      logInfo("Sending 'GET' request to URL : " + url);
       logInfo("Response Code : " + responseCode);
 
       BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
@@ -444,16 +502,16 @@ public class DomoticzSpeechlet implements Speechlet {
   private void logInfo(String msg, Object... o1) {
     if ((o1 != null) && (o1.length > 0)) {
       log.info(msg, o1);
-      System.out.printf(msg + "\n", o1);
+      // System.out.printf(msg + "\n", o1);
     } else {
       log.info(msg);
-      System.out.println(msg);
+      // System.out.println(msg);
     }
   }
 
   private void logError(String msg, Throwable o1) {
     log.error(msg, o1);
-    System.out.println(msg);
-    o1.printStackTrace();
+    // System.out.println(msg);
+    // o1.printStackTrace();
   }
 }
