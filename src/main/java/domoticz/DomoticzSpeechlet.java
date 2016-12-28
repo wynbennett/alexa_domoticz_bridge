@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
@@ -28,8 +29,16 @@ import com.amazon.speech.ui.SimpleCard;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.ReadContext;
 
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.DomoticzValues;
+import nl.hnogames.domoticzapi.Containers.DevicesInfo;
+import nl.hnogames.domoticzapi.Containers.ServerInfo;
+import nl.hnogames.domoticzapi.Containers.SwitchInfo;
+import nl.hnogames.domoticzapi.Interfaces.DevicesReceiver;
+import nl.hnogames.domoticzapi.Interfaces.setCommandReceiver;
+
 public class DomoticzSpeechlet implements Speechlet {
-  
+
   private static final Logger log = LoggerFactory.getLogger(DomoticzSpeechlet.class);
 
   /**
@@ -45,8 +54,10 @@ public class DomoticzSpeechlet implements Speechlet {
   private static final String CHANGE_SLOT = "Change";
   private static final String TEMPSENSOR_SLOT = "TempSensor";
 
-  private static final String HOSTNAME = System.getenv("HOSTNAME");
-  private static final String PORT = System.getenv("PORT");
+  private static final String USERNAME = System.getenv("DOMOTICZ_USERNAME");
+  private static final String PASSWORD = System.getenv("DOMOTICZ_PASSWORD");
+  private static final String HOSTNAME = System.getenv("DOMOTICZ_HOSTNAME");
+  private static final String PORT = System.getenv("DOMOTICZ_PORT");
 
   private static final String SERVER = "http://" + HOSTNAME + ":" + PORT;
 
@@ -64,6 +75,8 @@ public class DomoticzSpeechlet implements Speechlet {
       SERVER + "/json.htm?type=command&param=setsetpoint&idx=%s&setpoint=%s";
   private static final String DOMOTICZ_SET_TEMP_MODE =
       SERVER + "/json.htm?type=setused&idx=%s&tmode=%s&protected=false&used=true";
+
+  private Domoticz domoticz;
 
   @Override
   public void onSessionStarted(final SessionStartedRequest request, final Session session)
@@ -95,6 +108,19 @@ public class DomoticzSpeechlet implements Speechlet {
 
     Intent intent = request.getIntent();
     String intentName = (intent != null) ? intent.getName() : null;
+
+    ServerInfo server = new ServerInfo();
+    server.setRemoteServerUsername(USERNAME);
+    server.setRemoteServerPassword(PASSWORD);
+    server.setRemoteServerUrl(HOSTNAME);
+    server.setRemoteServerPort(PORT);
+    server.setRemoteServerSecure(false);
+    server.setEnabled(true);
+    server.setRemoteServerAuthenticationMethod(
+        Domoticz.Authentication.Method.AUTH_METHOD_BASIC_AUTHENTICATION);
+    server.setLocalSameAddressAsRemote();
+
+    domoticz = new Domoticz(server);
 
     if ("SwitchIntent".equals(intentName)) {
       return getSwitch(intent);
@@ -133,73 +159,104 @@ public class DomoticzSpeechlet implements Speechlet {
    * @return SpeechletResponse spoken and visual response for the given intent
    */
   private SpeechletResponse getSwitch(Intent intent) {
-    Slot switchSlot = intent.getSlot(SWITCH_SLOT);
-    Slot stateSlot = intent.getSlot(STATE_SLOT);
+    final Slot switchSlot = intent.getSlot(SWITCH_SLOT);
+    final Slot stateSlot = intent.getSlot(STATE_SLOT);
 
-    PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
-    SimpleCard card = new SimpleCard();
-    String outputSpeechString;
+    final PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
+    final SimpleCard card = new SimpleCard();
 
-    if (slotHasValue(switchSlot)) {
-      String switchName = switchSlot.getValue();
-      ReadContext ctx = JsonPath.parse(queryDomoticz(DOMOTICZ_LIGHT_LIST_URL));
-      logInfo("looking for switch: " + switchName);
-      List<String> statusValue = ctx.read("$.result[?(@.Name =~ /" + switchName + "/i)].Status");
-      if (statusValue.size() != 1) {
-        outputSpeechString =
-            "I'm sorry, I can't find a switch with that name.  You can ask me for a list of switches.";
-        card.setTitle("Switch unknown");
-        card.setContent(outputSpeechString);
-        return SpeechletResponse.newTellResponse(outputSpeech, card);
-      }
-      if (slotHasValue(stateSlot)) {
-        try {
-          String stateName = stateSlot.getValue();
-          String idxValue = readJsonPath(ctx, "$.result[?(@.Name =~ /" + switchName + "/i)].idx");
-          outputSpeechString = "Turning the " + switchName;
-          if ("on".equals(stateName)) {
-            outputSpeechString += " on";
-            stateName = "On";
-            queryDomoticz(DOMOTICZ_SWITCH_URL, idxValue, stateName);
-          } else if ("off".equals(stateName)) {
-            outputSpeechString += " off";
-            stateName = "Off";
-            queryDomoticz(DOMOTICZ_SWITCH_URL, idxValue, stateName);
-          } else {
-            // unknown state
-            logInfo('|' + stateName + '|');
-            outputSpeechString = "I don't know what state you mean, on or off.";
+    domoticz.getDevices(new DevicesReceiver() {
+
+      @Override
+      public void onReceiveDevices(ArrayList<DevicesInfo> devices) {
+        if (slotHasValue(switchSlot)) {
+          final String switchName = switchSlot.getValue();
+          DevicesInfo selectedSwitch = null;
+          for (DevicesInfo switchInfo : devices) {
+            if (switchInfo.getName().equalsIgnoreCase(switchName)) {
+              selectedSwitch = switchInfo;
+              break;
+            }
           }
-          outputSpeech.setText(outputSpeechString);
-          card.setTitle("State of " + switchName);
-          card.setContent(stateName);
-        } catch (Exception e) {
-          System.err.println("Caught Exception: " + e.getMessage());
-        }
-        return SpeechletResponse.newTellResponse(outputSpeech, card);
-      } else {
-        // no state value provided, report the state
-        if (switchName.substring(switchName.length() - 1).equals("s")) {
-          outputSpeechString = switchName + " are " + statusValue.get(0);
+
+          if (selectedSwitch == null) {
+            String outputSpeechString =
+                "I'm sorry, I can't find a switch with that name.  You can ask me for a list of switches.";
+            card.setTitle("Switch unknown");
+            card.setContent(outputSpeechString);
+            return;
+          }
+
+          if (slotHasValue(stateSlot)) {
+            final String stateName = stateSlot.getValue();
+
+            String outputSpeechString = "Turning the " + switchName;
+            int actionVal = 0;
+            if ("on".equals(stateName)) {
+              outputSpeechString += " on";
+              actionVal = DomoticzValues.Device.Switch.Action.ON;
+            } else if ("off".equals(stateName)) {
+              outputSpeechString += " off";
+              actionVal = DomoticzValues.Device.Switch.Action.OFF;
+            } else {
+              // unknown state
+              logInfo('|' + stateName + '|');
+              outputSpeechString = "I don't know what state you mean, on or off.";
+              outputSpeech.setText(outputSpeechString);
+              card.setTitle("State of " + switchName);
+              card.setContent(stateName);
+              return;
+            }
+
+            final String finalizedOutputSpeechString = outputSpeechString;
+            domoticz.setAction(selectedSwitch.getIdx(), DomoticzValues.Json.Url.Set.SWITCHES,
+                actionVal, 0, PASSWORD, new setCommandReceiver() {
+                  @Override
+                  public void onReceiveResult(String result) {
+                    outputSpeech.setText(finalizedOutputSpeechString);
+                    card.setTitle("State of " + switchName);
+                    card.setContent(stateName);
+                    return;
+                  }
+
+                  @Override
+                  public void onError(Exception error) {}
+                });
+          } else {
+            // no state value provided, report the state
+            String outputSpeechString;
+            if (switchName.substring(switchName.length() - 1).equals("s")) {
+              outputSpeechString = switchName + " are " + selectedSwitch.getData();
+            } else {
+              outputSpeechString = switchName + " is " + selectedSwitch.getData();
+            }
+            outputSpeech.setText(outputSpeechString);
+            card.setTitle("State of " + switchName);
+            card.setContent(outputSpeechString);
+            return;
+          }
         } else {
-          outputSpeechString = switchName + " is " + statusValue.get(0);
+          String outputSpeechString = "The house has the following switches: ";
+          List<String> switchList = new ArrayList<String>();
+          for (DevicesInfo switchInfo : devices) {
+            switchList.add(switchInfo.getName());
+          }
+          String switchListString = StringUtils.join(switchList, ", ");
+          outputSpeechString += switchListString;
+          outputSpeech.setText(outputSpeechString);
+          card.setTitle("Available switches");
+          card.setContent(switchListString);
+          return;
         }
-        outputSpeech.setText(outputSpeechString);
-        card.setTitle("State of " + switchName);
-        card.setContent(outputSpeechString);
-        return SpeechletResponse.newTellResponse(outputSpeech, card);
       }
-    } else {
-      outputSpeechString = "The house has the following switches: ";
-      ReadContext ctx = JsonPath.parse(queryDomoticz(DOMOTICZ_LIGHT_LIST_URL));
-      List<String> switchList = ctx.read("$.result..Name");
-      String switchListString = StringUtils.join(switchList, ", ");
-      outputSpeechString += switchListString;
-      outputSpeech.setText(outputSpeechString);
-      card.setTitle("Available switches");
-      card.setContent(switchListString);
-      return SpeechletResponse.newTellResponse(outputSpeech, card);
-    }
+
+      @Override
+      public void onError(Exception error) {}
+
+      @Override
+      public void onReceiveDevice(DevicesInfo mDevicesInfo) {}
+    }, 0, null);
+    return SpeechletResponse.newTellResponse(outputSpeech, card);
   }
 
   private SpeechletResponse getTemperature(Intent intent) {
@@ -389,8 +446,8 @@ public class DomoticzSpeechlet implements Speechlet {
     try {
       URL obj = new URL(url);
       HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-      String encoded = Base64.getEncoder().encodeToString(
-          (System.getenv("USERNAME") + ":" + System.getenv("PASSWORD")).getBytes("UTF-8"));
+      String encoded =
+          Base64.getEncoder().encodeToString((USERNAME + ":" + PASSWORD).getBytes("UTF-8"));
       con.setRequestProperty("Authorization", "Basic " + encoded);
       con.setRequestMethod("GET");
       int responseCode = con.getResponseCode();
