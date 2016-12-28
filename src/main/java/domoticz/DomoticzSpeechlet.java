@@ -45,8 +45,10 @@ public class DomoticzSpeechlet implements Speechlet {
   private static final String CHANGE_SLOT = "Change";
   private static final String TEMPSENSOR_SLOT = "TempSensor";
 
-  private static final String HOSTNAME = System.getenv("HOSTNAME");
-  private static final String PORT = System.getenv("PORT");
+  private static final String USERNAME = System.getenv("DOMOTICZ_USERNAME");
+  private static final String PASSWORD = System.getenv("DOMOTICZ_PASSWORD");
+  private static final String HOSTNAME = System.getenv("DOMOTICZ_HOSTNAME");
+  private static final String PORT = System.getenv("DOMOTICZ_PORT");
 
   private static final String SERVER = "http://" + HOSTNAME + ":" + PORT;
 
@@ -389,8 +391,8 @@ public class DomoticzSpeechlet implements Speechlet {
     try {
       URL obj = new URL(url);
       HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-      String encoded = Base64.getEncoder().encodeToString(
-          (System.getenv("USERNAME") + ":" + System.getenv("PASSWORD")).getBytes("UTF-8"));
+      String encoded =
+          Base64.getEncoder().encodeToString((USERNAME + ":" + PASSWORD).getBytes("UTF-8"));
       con.setRequestProperty("Authorization", "Basic " + encoded);
       con.setRequestMethod("GET");
       int responseCode = con.getResponseCode();
